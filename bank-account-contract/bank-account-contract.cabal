@@ -50,6 +50,7 @@ library
                         BankAccountDatum
                         BankAccountRedeemer
                         ReducedFunctions
+                        ReducedData
 
   build-depends:        bytestring
                       , cardano-api
@@ -59,6 +60,7 @@ library
                       , plutus-script-utils
                       , serialise
                       , useful-funcs
+                      , plutonomy
 
   ghc-options: -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
 

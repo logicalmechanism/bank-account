@@ -30,7 +30,6 @@ module BankAccountRedeemer
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
--- import qualified Plutus.V2.Ledger.Api as V2
 -------------------------------------------------------------------------------
 -- | Create the redeemer data object.
 -------------------------------------------------------------------------------

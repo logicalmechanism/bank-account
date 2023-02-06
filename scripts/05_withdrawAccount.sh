@@ -36,6 +36,14 @@ TXIN=$(jq -r --arg alltxin "" --arg payerPkh "${payer_pkh}" 'to_entries[] | sele
 script_tx_in=${TXIN::-8}
 
 CURRENT_VALUE=$(jq -r --arg payerPkh "${payer_pkh}" 'to_entries[] | select(.value.inlineDatum.fields[0].fields[0].bytes == $payerPkh) | .value.value.lovelace' tmp/script_utxo.json)
+THRESHOLD=$(jq -r --arg payerPkh "${payer_pkh}" 'to_entries[] | select(.value.inlineDatum.fields[0].fields[0].bytes == $payerPkh) | .value.inlineDatum.fields[1].fields[0].int' tmp/script_utxo.json)
+MINIMUM=$(jq -r --arg payerPkh "${payer_pkh}" 'to_entries[] | select(.value.inlineDatum.fields[0].fields[0].bytes == $payerPkh) | .value.inlineDatum.fields[1].fields[1].int' tmp/script_utxo.json)
+
+# check threshold
+if [[ $CURRENT_VALUE -lt $THRESHOLD ]] ; then
+    echo -e "\n \033[0;31m Balance Must Be Greater Than Account Threshold \033[0m \n";
+    exit
+fi
 
 # empty args
 if [[ $# -eq 0 ]] ; then
@@ -50,6 +58,12 @@ if [[ ${1} -eq 0 ]] ; then
 fi
 
 newAmount=$((${CURRENT_VALUE} - ${1}))
+
+# check threshold
+if [[ $newAmount -lt $MINIMUM ]] ; then
+    echo -e "\n \033[0;31m Balance Must Be Greater Than Account Minimum \033[0m \n";
+    exit
+fi
 
 # update the starting lock time
 variable=${1}; jq --argjson variable "$variable" '.fields[0].fields[0].int=$variable' data/redeemer/withdraw-redeemer.json > data/redeemer/withdraw-redeemer-new.json

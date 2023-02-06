@@ -31,7 +31,6 @@ module ReducedFunctions
   , findPayout
   , nInputs
   , nOutputs
-  , nRedeemers
   , getScriptOutputs
   , ownInput
   , scriptOutAt
@@ -39,6 +38,7 @@ module ReducedFunctions
 import           PlutusTx.Prelude
 import qualified Plutus.V2.Ledger.Api      as V2
 import qualified Plutus.V1.Ledger.Value    as Value
+import           ReducedData
 
 {-# INLINABLE scriptOutAt #-}
 -- | Get the list of 'TxOut' outputs of the pending transaction at
@@ -52,26 +52,25 @@ scriptOutAt vHash outs = scriptOutAt' vHash outs
       | otherwise = scriptOutAt' vHash xs
 
 {-# INLINABLE getScriptOutputs #-}
-getScriptOutputs :: [V2.TxOut] -> V2.Address -> [V2.TxOut]
+getScriptOutputs :: [BankTxOut] -> V2.Address -> [BankTxOut]
 getScriptOutputs txOuts addr' = getScriptOutputs' txOuts addr' []
   where
-    getScriptOutputs' :: [V2.TxOut] -> V2.Address -> [V2.TxOut] -> [V2.TxOut]
+    getScriptOutputs' :: [BankTxOut] -> V2.Address -> [BankTxOut] -> [BankTxOut]
     getScriptOutputs' [] _ contOuts = contOuts
     getScriptOutputs' (x:xs) addr contOuts
-      | V2.txOutAddress x == addr = getScriptOutputs' xs addr (x:contOuts)
-      | otherwise                 = getScriptOutputs' xs addr contOuts
+      | txOutAddress x == addr = getScriptOutputs' xs addr (x:contOuts)
+      | otherwise              = getScriptOutputs' xs addr contOuts
 
 -- rewrite findOwnInput without higher order functions
 {-# INLINABLE ownInput #-}
-ownInput :: V2.ScriptContext -> V2.TxOut
-ownInput (V2.ScriptContext t_info (V2.Spending o_ref)) = getScriptInput (V2.txInfoInputs t_info) o_ref
-ownInput _ = traceError "no script input"
+ownInput :: BankScriptContext -> BankTxOut
+ownInput (BankScriptContext t_info (Spending o_ref)) = getScriptInput (txInfoInputs t_info) o_ref
 
 -- get the validating script input
 {-# INLINABLE getScriptInput #-}
-getScriptInput :: [V2.TxInInfo] -> V2.TxOutRef -> V2.TxOut
+getScriptInput :: [BankTxInInfo] -> V2.TxOutRef -> BankTxOut
 getScriptInput [] _ = traceError "script input not found"
-getScriptInput ((V2.TxInInfo tref ot) : xs) o_ref
+getScriptInput ((BankTxInInfo tref ot) : xs) o_ref
   | tref == o_ref = ot
   | otherwise = getScriptInput xs o_ref
 
@@ -96,57 +95,47 @@ signedBy list k = loop list
       | otherwise = loop xs
 
 {-# INLINABLE findPayout #-}
-findPayout :: [V2.TxOut] -> V2.Address -> V2.Value -> Bool
+findPayout :: [BankTxOut] -> V2.Address -> V2.Value -> Bool
 findPayout list addr val = helper list
   where
-    helper :: [V2.TxOut] -> Bool
+    helper :: [BankTxOut] -> Bool
     helper [] = False
     helper (x:xs)
       | checkAddr && checkVal = True
       | otherwise             = helper xs
       where
         checkAddr :: Bool
-        checkAddr = V2.txOutAddress x == addr
+        checkAddr = txOutAddress x == addr
 
         checkVal :: Bool
-        checkVal = Value.geq (V2.txOutValue x) val
+        checkVal = Value.geq (txOutValue x) val
 
 -- | Count the number of inputs that have inline datums.
 {-# INLINABLE nInputs #-}
-nInputs :: [V2.TxInInfo] -> V2.Address -> Integer -> Bool
+nInputs :: [BankTxInInfo] -> V2.Address -> Integer -> Bool
 nInputs utxos addr number = loopInputs utxos 0 0
   where
-    loopInputs :: [V2.TxInInfo] -> Integer -> Integer -> Bool
+    loopInputs :: [BankTxInInfo] -> Integer -> Integer -> Bool
     loopInputs []     !dC !sC = (dC == number) && (sC == number)
     loopInputs (x:xs) !dC !sC = 
-      case V2.txOutDatum txInOut  of
-        V2.NoOutputDatum       -> loopInputs xs dC sC
-        (V2.OutputDatumHash _) -> loopInputs xs dC sC
-        (V2.OutputDatum _)     -> 
-          if V2.txOutAddress txInOut == addr
+      case txOutDatum txInOut  of
+        NoOutputDatum       -> loopInputs xs dC sC
+        (OutputDatum _)     -> 
+          if txOutAddress txInOut == addr
             then loopInputs xs (dC + 1) (sC + 1) -- inline
             else loopInputs xs (dC + 1) sC
       where 
-        txInOut :: V2.TxOut
-        txInOut = V2.txInInfoResolved x
+        txInOut :: BankTxOut
+        txInOut = txInInfoResolved x
 
 -- | Count the number of outputs that have inline datums.
 {-# INLINABLE nOutputs #-}
-nOutputs :: [V2.TxOut] -> Integer -> Bool
+nOutputs :: [BankTxOut] -> Integer -> Bool
 nOutputs utxos number = loopInputs utxos 0
   where
-    loopInputs :: [V2.TxOut] -> Integer  -> Bool
+    loopInputs :: [BankTxOut] -> Integer  -> Bool
     loopInputs []     !counter = counter == number
     loopInputs (x:xs) !counter = 
-      case V2.txOutDatum x of
-        V2.NoOutputDatum       -> loopInputs xs   counter
-        (V2.OutputDatumHash _) -> loopInputs xs   counter
-        (V2.OutputDatum _)     -> loopInputs xs ( counter + 1 ) -- inline
-
-{-# INLINABLE nRedeemers #-}
-nRedeemers :: [(V2.ScriptPurpose, V2.Redeemer)] -> Integer -> Bool
-nRedeemers redeemers number = nRedeemers' redeemers 0
-  where
-    nRedeemers' :: [(V2.ScriptPurpose, V2.Redeemer)] -> Integer -> Bool
-    nRedeemers' []     counter = counter == number
-    nRedeemers' ((_, _):xs) counter = nRedeemers' xs ( counter + 1 )
+      case txOutDatum x of
+        NoOutputDatum       -> loopInputs xs   counter
+        (OutputDatum _)     -> loopInputs xs ( counter + 1 ) -- inline
