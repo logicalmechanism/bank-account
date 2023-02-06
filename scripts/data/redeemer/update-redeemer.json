@@ -1,0 +1,19 @@
+{
+  "constructor": 3,
+  "fields": [
+    {
+      "constructor": 0,
+      "fields": [
+        {
+          "int": 5000000
+        },
+        {
+          "int": 2000000
+        },
+        {
+          "bytes": ""
+        }
+      ]
+    }
+  ]
+}

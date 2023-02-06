@@ -1,0 +1,3 @@
+cradle:
+  cabal:
+    - path: "./bank-account-contract/src"
